@@ -1,0 +1,100 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import statsmodels.formula.api as sm
+from sklearn import linear_model
+
+
+def readData():
+
+    allData = pd.DataFrame()
+
+    for i in range(8,10):
+        gdf = pd.read_csv("./CSV/g"+str(i)+"_gyr.csv")
+        ldf = pd.read_csv("./CSV/l" + str(i) + "_lac.csv")
+        rdf = pd.read_csv("./CSV/r" + str(i) + "_rot.csv")
+        tempData = organizeDataExcel(gdf,ldf,rdf,0)
+        allData = pd.concat([allData, tempData])
+
+        gdf = pd.read_csv("./CSV/gd" + str(i) + "_gyr.csv")
+        ldf = pd.read_csv("./CSV/ld" + str(i) + "_lac.csv")
+        rdf = pd.read_csv("./CSV/rd" + str(i) + "_rot.csv")
+        tempData = organizeDataExcel(gdf, ldf, rdf, 1)
+
+        #print(tempData.head())
+        allData = pd.concat([allData,tempData])
+
+    allData.to_csv("./out/test.csv", sep=',')
+
+    #print(allData)
+    #result = sm.ols(formula="db ~ GmeanX + GmeanY + GmaxX + GmaxY + GmaxZ", data=allData).fit()
+    #print (result.summary())
+
+
+    #print(allData.head())
+    #data = np.asarray(allData)
+
+    #print(data)
+
+    #xArray = data[:,:27]
+    #yArray = data[:,27:]
+
+    #reg = linear_model.LinearRegression()
+    #reg.fit(xArray,yArray)
+    #print(xArray)
+    #print(yArray)
+    #print(reg.coef_)
+    #print(reg.intercept_)
+
+def organizeData(gdf,ldf,rdf,type):
+    finalDF = pd.DataFrame({
+        "GmeanX": gdf["X_value"].mean(),
+        "GmeanY": gdf["Y_value"].mean(),
+        "GmeanZ": gdf["Z_value"].mean(),
+        "GmaxX": gdf["X_value"].max(),
+        "GmaxY": gdf["Y_value"].max(),
+        "GmaxZ": gdf["Z_value"].max(),
+        "GminX": gdf["X_value"].min(),
+        "GminY": gdf["Y_value"].min(),
+        "GminZ": gdf["Z_value"].min(),
+        "LmeanX": ldf["X_value"].mean(),
+        "LmeanY": ldf["Y_value"].mean(),
+        "LmeanZ": ldf["Z_value"].mean(),
+        "LmaxX": ldf["X_value"].max(),
+        "LmaxY": ldf["Y_value"].max(),
+        "LmaxZ": ldf["Z_value"].max(),
+        "LminX": ldf["X_value"].min(),
+        "LminY": ldf["Y_value"].min(),
+        "LminZ": ldf["Z_value"].min(),
+        "RmeanX": rdf["X_value"].mean(),
+        "RmeanY": rdf["Y_value"].mean(),
+        "RmeanZ": rdf["Z_value"].mean(),
+        "RmaxX": rdf["X_value"].max(),
+        "RmaxY": rdf["Y_value"].max(),
+        "RmaxZ": rdf["Z_value"].max(),
+        "RminX": rdf["X_value"].min(),
+        "RminY": rdf["Y_value"].min(),
+        "RminZ": rdf["Z_value"].min(),
+        "db":type
+    }, index=[0])
+
+    return finalDF
+
+
+def organizeDataExcel(gdf,ldf,rdf,type):
+    finalDF = pd.DataFrame({
+        "GminZ": gdf["Z_value"].min(),
+        "GmaxZ": gdf["Z_value"].max(),
+        "GsdZ": gdf["Z_value"].std(),
+        "GmeanZ": gdf["Z_value"].mean(),
+        "db":type
+    }, index=[0])
+
+    return finalDF
+
+readData()
+#print(df.apply(np.max))
+
+
+
+
