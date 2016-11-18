@@ -46,7 +46,7 @@ public class TrackingStorageManager {
         //if (!this.isBetterLocation(location))
         //    return;
 
-        //this.mCurrentBestLocation = location;
+        this.mCurrentBestLocation = location;
         double[] values = new double[4];
         values[0] = location.getElapsedRealtimeNanos();
         values[1] = location.getLatitude();
@@ -67,14 +67,12 @@ public class TrackingStorageManager {
         for (float[] entry: mGyroscope) {
             output.append(Arrays.toString(entry));
             output.append('\n');
-            System.out.println(Arrays.toString(entry));
         }
 
         output.append("[Linear Accelerometer output(timestamp, x, y, z)]");
         for (float[] entry: mLinearAccelerometer) {
             output.append(Arrays.toString(entry));
             output.append('\n');
-            System.out.println(Arrays.toString(entry));
         }
 
         output.append("[Location output(timestamp, Lat, Lng, Alt)]");
@@ -141,4 +139,12 @@ public class TrackingStorageManager {
         }
         return provider1.equals(provider2);
     }
+
+    public void reset() {
+        this.mGyroscope.clear();
+        this.mLinearAccelerometer.clear();
+        this.mLocation.clear();
+    }
+
+
 }

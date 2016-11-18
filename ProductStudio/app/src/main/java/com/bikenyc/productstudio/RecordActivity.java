@@ -1,5 +1,7 @@
 package com.bikenyc.productstudio;
 
+import android.Manifest;
+import android.app.AlertDialog;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
@@ -10,13 +12,15 @@ import android.hardware.SensorManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
-import android.net.Uri;
-import android.os.Build;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.SystemClock;
+import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.content.res.ResourcesCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.Chronometer;
@@ -52,6 +56,9 @@ public class RecordActivity extends AppCompatActivity implements SensorEventList
     private Button mTrackButton;
 
     private Chronometer mChronometer;
+
+    private HandlerThread mSensorThread;
+    private Handler mSensorHandler;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -112,8 +119,12 @@ public class RecordActivity extends AppCompatActivity implements SensorEventList
     }
 
     public void startRecording() {
-        this.mSensorManager.registerListener(this, mSensorGyroscope, SensorManager.SENSOR_DELAY_NORMAL);
-        this.mSensorManager.registerListener(this, mSensorLinearAccelerometer, SensorManager.SENSOR_DELAY_NORMAL);
+        mSensorThread = new HandlerThread("Sensor thread", Thread.MAX_PRIORITY);
+        mSensorThread.start();
+        mSensorHandler = new Handler(mSensorThread.getLooper()); //Blocks until looper is prepared, which is fairly quick
+
+        this.mSensorManager.registerListener(this, mSensorGyroscope, SensorManager.SENSOR_DELAY_NORMAL, mSensorHandler);
+        this.mSensorManager.registerListener(this, mSensorLinearAccelerometer, SensorManager.SENSOR_DELAY_NORMAL, mSensorHandler);
 
         mLocationListener = new LocationListener() {
             public void onLocationChanged(Location location) {
@@ -121,27 +132,31 @@ public class RecordActivity extends AppCompatActivity implements SensorEventList
                 mStorageManager.handleLocationEvent(location);
             }
 
-            public void onStatusChanged(String provider, int status, Bundle extras) {}
+            public void onStatusChanged(String provider, int status, Bundle extras) {
+            }
 
-            public void onProviderEnabled(String provider) {}
+            public void onProviderEnabled(String provider) {
+            }
 
-            public void onProviderDisabled(String provider) {}
+            public void onProviderDisabled(String provider) {
+            }
         };
 
-        if (
-                ContextCompat.checkSelfPermission( getApplicationContext(), android.Manifest.permission.ACCESS_FINE_LOCATION ) != PackageManager.PERMISSION_GRANTED &&
-                ContextCompat.checkSelfPermission( getApplicationContext(), android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            System.out.println("No permission to GPS");
+        if (ContextCompat.checkSelfPermission(getApplicationContext(), android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+                ContextCompat.checkSelfPermission(getApplicationContext(), android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission_group.LOCATION},100);
+
         }
 
         // Register the listener with the Location Manager to receive location updates
         if (mLocationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER))
-            mLocationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, mLocationListener);
+            mLocationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, mLocationListener, mSensorThread.getLooper());
         else
             System.out.println("No Network provider");
 
         if (mLocationManager.isProviderEnabled(LocationManager.GPS_PROVIDER))
-            mLocationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, mLocationListener);
+            mLocationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, mLocationListener, mSensorThread.getLooper());
         else
             System.out.println("No GPS provider");
 
@@ -150,16 +165,42 @@ public class RecordActivity extends AppCompatActivity implements SensorEventList
         this.mChronometer.start();
     }
 
+    @Override
+    public void onRequestPermissionsResult(int requestCode,
+                                           String permissions[], int[] grantResults) {
+        if (requestCode == 100) {
+            System.out.println("Finally we got permission!");
+        }
+    }
+
     public void stopRecording() {
+        mSensorManager.unregisterListener(this);
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                // TODO: Consider calling
+                //    ActivityCompat#requestPermissions
+                // here to request the missing permissions, and then overriding
+                //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+                //                                          int[] grantResults)
+                // to handle the case where the user grants the permission. See the documentation
+                // for ActivityCompat#requestPermissions for more details.
+                return;
+            }mLocationManager.removeUpdates(this.mLocationListener);
+
         File file = this.createCSVFile();
         if (file.canRead()) {
-            if (this.uploadFile(file)) {
-                System.out.println("File uploaded!");
-                //this.getApplicationContext().deleteFile(file.getName());
-            }
+            this.uploadFile(file);
         }
         ((RelativeLayout) findViewById(R.id.activity_record)).setBackgroundColor(ResourcesCompat.getColor(getResources(), R.color.green, null));
         this.mChronometer.stop();
+    }
+
+    private void showUploadMessage() {
+        AlertDialog.Builder dlgAlert  = new AlertDialog.Builder(this);
+        dlgAlert.setMessage("The data has been uploaded!");
+        dlgAlert.setTitle("Upload");
+        dlgAlert.setPositiveButton("OK", null);
+        dlgAlert.setCancelable(false);
+        dlgAlert.create().show();
     }
 
     /**
@@ -185,10 +226,10 @@ public class RecordActivity extends AppCompatActivity implements SensorEventList
     /**
      * This method will attempt to upload the stored data into the cloud and return a flag
      * stating if the upload was successful.
-     *
-     * @return boolean Whether if it was a succesful upload or not
+     * @param file It's the file reference to be used to upload.
+     * @return
      */
-    public boolean uploadFile(File file) {
+    public void uploadFile(final File file) {
         // Initialize the Amazon Cognito credentials provider
         CognitoCachingCredentialsProvider credentialsProvider = new CognitoCachingCredentialsProvider(
                 getApplicationContext(),
@@ -206,7 +247,41 @@ public class RecordActivity extends AppCompatActivity implements SensorEventList
                 file        /* The file where the data to upload exists */
         );
 
-        return true;
+
+        class UploadListener implements TransferListener {
+
+            private static final String TAG = "UploadListener";
+
+            @Override
+            public void onStateChanged(int id, TransferState state) {
+                Log.d(TAG, "onStateChanged: " + id + ", " + state);
+
+                if (state == TransferState.IN_PROGRESS) {
+                    System.out.println("Upload initialized!");
+                    showUploadMessage();
+                }
+
+                if (state == TransferState.COMPLETED) {
+                    System.out.println("Upload Completed!");
+                    getApplicationContext().deleteFile(file.getName());
+                    mStorageManager.reset();
+                }
+            }
+
+            @Override
+            public void onProgressChanged(int id, long bytesCurrent, long bytesTotal) {
+                Log.d(TAG, String.format("onProgressChanged: %d, total: %d, current: %d",
+                        id, bytesTotal, bytesCurrent));
+            }
+
+            @Override
+            public void onError(int id, Exception ex) {
+                Log.e(TAG, "Error during upload: " + id, ex);
+            }
+        }
+
+        observer.setTransferListener(new UploadListener());
+
     }
 
     @Override
