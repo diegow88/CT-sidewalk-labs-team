@@ -2,6 +2,7 @@ package com.bikenyc.productstudio;
 
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -11,11 +12,15 @@ import android.location.LocationListener;
 import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Build;
+import android.os.SystemClock;
 import android.support.v4.content.ContextCompat;
+import android.support.v4.content.res.ResourcesCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
+import android.widget.Chronometer;
+import android.widget.RelativeLayout;
 
 import com.amazonaws.auth.CognitoCachingCredentialsProvider;
 import com.amazonaws.mobileconnectors.s3.transferutility.TransferListener;
@@ -46,6 +51,8 @@ public class RecordActivity extends AppCompatActivity implements SensorEventList
     private Button mStartStopButton;
     private Button mTrackButton;
 
+    private Chronometer mChronometer;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -71,8 +78,10 @@ public class RecordActivity extends AppCompatActivity implements SensorEventList
 
 
         this.mStartStopButton = (Button) findViewById(R.id.start_stop);
-        this.mTrackButton = (Button) findViewById(R.id.track_double_parking);
+        //this.mTrackButton = (Button) findViewById(R.id.track_double_parking);
 
+        this.mChronometer = (Chronometer) findViewById(R.id.chronometer1);
+        //this.mChronometer.setFormat("H:MM:SS");
         this.mRecording = false;
     }
 
@@ -103,8 +112,8 @@ public class RecordActivity extends AppCompatActivity implements SensorEventList
     }
 
     public void startRecording() {
-        this.mSensorManager.registerListener(this, mSensorGyroscope, SensorManager.SENSOR_DELAY_GAME);
-        this.mSensorManager.registerListener(this, mSensorLinearAccelerometer, SensorManager.SENSOR_DELAY_GAME);
+        this.mSensorManager.registerListener(this, mSensorGyroscope, SensorManager.SENSOR_DELAY_NORMAL);
+        this.mSensorManager.registerListener(this, mSensorLinearAccelerometer, SensorManager.SENSOR_DELAY_NORMAL);
 
         mLocationListener = new LocationListener() {
             public void onLocationChanged(Location location) {
@@ -136,6 +145,9 @@ public class RecordActivity extends AppCompatActivity implements SensorEventList
         else
             System.out.println("No GPS provider");
 
+        ((RelativeLayout) findViewById(R.id.activity_record)).setBackgroundColor(ResourcesCompat.getColor(getResources(), R.color.red, null));
+        this.mChronometer.setBase(SystemClock.elapsedRealtime());
+        this.mChronometer.start();
     }
 
     public void stopRecording() {
@@ -146,6 +158,8 @@ public class RecordActivity extends AppCompatActivity implements SensorEventList
                 //this.getApplicationContext().deleteFile(file.getName());
             }
         }
+        ((RelativeLayout) findViewById(R.id.activity_record)).setBackgroundColor(ResourcesCompat.getColor(getResources(), R.color.green, null));
+        this.mChronometer.stop();
     }
 
     /**
@@ -178,9 +192,7 @@ public class RecordActivity extends AppCompatActivity implements SensorEventList
         // Initialize the Amazon Cognito credentials provider
         CognitoCachingCredentialsProvider credentialsProvider = new CognitoCachingCredentialsProvider(
                 getApplicationContext(),
-                //"981161866060",
                 "us-east-1:8945e6af-0fa5-453b-84f7-f4e221bcf815", // Identity Pool ID
-                //"arn:aws:iam::981161866060:role/Cognito_BikeNYCUnauth_Role",
                 Regions.US_EAST_1 // Region
         );
 
